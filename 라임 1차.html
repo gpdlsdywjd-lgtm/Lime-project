@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>라임 코딩</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root{
+    --bg:#f5f2eb; --ink:#2b2621; --muted:#7a6e65; --lime:#85b032;
+    box-sizing:border-box;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;width:100%;height:100%;background:var(--bg);color:var(--ink);
+    font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif; overflow:hidden;}
+  button{font-family:inherit;cursor:pointer}
+  .panel-sheet.show{opacity:1;pointer-events:auto}
+  .panel-sheet.show .panel-sheet-inner{transform:translateY(0)}
+  @keyframes bob{50%{transform:translate(-50%,-6px)}}
+</style>
+</head>
+<body class="antialiased w-full h-screen flex flex-col overflow-hidden">
+<div id="app" class="w-full h-full max-w-6xl mx-auto p-2 sm:p-4 flex flex-col justify-between">
+
+  <header class="bg-[#fffdf9] border-2 border-[#d8cebe] shadow-[3px_3px_0_#d8cebe] p-2.5 sm:p-3 mb-2 rounded-xl w-full shrink-0">
+    <div class="flex items-center justify-between mb-1.5">
+      <div class="flex items-center gap-2">
+        <span class="text-[#85b032] text-xl animate-pulse">●</span>
+        <h1 class="text-xl font-bold tracking-wide">라임 코딩</h1>
+      </div>
+      <p class="text-xs text-[#7a6e65]">방구석 인생 타이쿤 v3.1</p>
+    </div>
+
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-2 pt-1.5 border-t border-[#eee6d8]">
+      <div class="bg-[#fcfbfa] border-2 border-[#e6decb] p-2 rounded-lg">
+        <span class="text-[10px] text-[#7a6e65] tracking-wider block">LV</span>
+        <strong id="stat-level" class="text-base sm:text-lg">1</strong>
+        <div class="h-1.5 bg-[#eee6d8] mt-1 rounded overflow-hidden">
+          <div id="bar-exp" class="h-full bg-[#85b032] w-0 transition-all duration-300"></div>
+        </div>
+      </div>
+      <div class="bg-[#fcfbfa] border-2 border-[#e6decb] p-2 rounded-lg">
+        <div class="flex justify-between items-center">
+          <span class="text-[10px] text-[#7a6e65] tracking-wider block">멘탈</span>
+          <span id="mental-status-badge" class="text-[9px] font-bold px-1 rounded bg-[#fcfbfa] text-[#7a6e65]">안정</span>
+        </div>
+        <strong id="stat-mental" class="text-base sm:text-lg">52</strong>
+        <div class="h-1.5 bg-[#eee6d8] mt-1 rounded overflow-hidden">
+          <div id="bar-mental" class="h-full bg-[#d45c6e] w-[52%] transition-all duration-300"></div>
+        </div>
+      </div>
+      <div class="bg-[#fcfbfa] border-2 border-[#e6decb] p-2 rounded-lg">
+        <div class="flex justify-between items-center">
+          <span class="text-[10px] text-[#7a6e65] tracking-wider block">체력</span>
+          <span id="stamina-status-badge" class="text-[9px] font-bold px-1 rounded bg-[#fcfbfa] text-[#7a6e65]">보통</span>
+        </div>
+        <strong id="stat-stamina" class="text-base sm:text-lg">25</strong>
+        <div class="h-1.5 bg-[#eee6d8] mt-1 rounded overflow-hidden">
+          <div id="bar-stamina" class="h-full bg-[#3b82f6] w-[25%] transition-all duration-300"></div>
+        </div>
+      </div>
+      <div class="bg-[#fcfbfa] border-2 border-[#e6decb] p-2 rounded-lg flex flex-col justify-center">
+        <span class="text-[10px] text-[#7a6e65] tracking-wider block">라임 재화</span>
+        <strong id="stat-gold" class="text-base sm:text-lg text-[#b8860b]">20</strong>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 flex flex-col items-stretch mb-2 w-full min-h-0">
+    <section id="stage" class="bg-[#eef4e2] border-2 border-[#c4db9b] shadow-[4px_4px_0_#d8cebe] relative overflow-hidden flex-1 flex flex-col justify-between rounded-2xl p-3 sm:p-4 w-full">
+
+      <div class="absolute top-3 left-3 z-10 bg-white/80 backdrop-blur border border-[#b2d264] px-2.5 py-0.5 text-xs rounded-full font-medium text-[#4a6b1e]">원룸 · 침대</div>
+
+      <div id="achieve-float" class="absolute top-10 left-1/2 -translate-x-1/2 z-20 font-mono text-xs text-[#557a1b] drop-shadow-[0_1px_0_#fff] animate-[bob_2.4s_ease-in-out_infinite] pointer-events-none text-center max-w-[70%]"></div>
+
+      <div id="mutter" hidden class="absolute top-16 left-1/2 -translate-x-1/2 z-20 bg-white text-[#2b2621] px-3 py-1.5 text-xs sm:text-sm max-w-[85%] shadow-lg border-2 border-[#c4db9b] rounded-xl"></div>
+
+      <div class="flex items-center justify-between gap-1 sm:gap-4 flex-1 my-1 w-full min-h-0">
+
+        <nav id="icons-left" class="flex flex-col gap-1.5 shrink-0 w-14 sm:w-20 bg-white/70 backdrop-blur border-2 border-[#c4db9b] p-1.5 sm:p-2 rounded-xl shadow-sm">
+          <span class="text-[9px] text-center text-[#7a6e65] font-bold tracking-wider mb-0.5">MENU</span>
+          <button type="button" class="icon-btn bg-white border-2 border-[#d8cebe] p-1.5 sm:p-2 flex flex-col items-center justify-center hover:bg-[#f4f8ed] active:scale-95 transition-all rounded-lg shadow-sm" data-tab="calendar"><span class="text-base sm:text-lg">🗓️</span><span class="text-[9px] text-[#7a6e65] mt-0.5">달력</span></button>
+          <button type="button" class="icon-btn bg-white border-2 border-[#d8cebe] p-1.5 sm:p-2 flex flex-col items-center justify-center hover:bg-[#f4f8ed] active:scale-95 transition-all rounded-lg shadow-sm" data-tab="todo"><span class="text-base sm:text-lg">📝</span><span class="text-[9px] text-[#7a6e65] mt-0.5">투두</span></button>
+          <button type="button" class="icon-btn bg-white border-2 border-[#d8cebe] p-1.5 sm:p-2 flex flex-col items-center justify-center hover:bg-[#f4f8ed] active:scale-95 transition-all rounded-lg shadow-sm" data-tab="daily"><span class="text-base sm:text-lg">✅</span><span class="text-[9px] text-[#7a6e65] mt-0.5">퀘스트</span></button>
+          <button type="button" class="icon-btn bg-white border-2 border-[#d8cebe] p-1.5 sm:p-2 flex flex-col items-center justify-center hover:bg-[#f4f8ed] active:scale-95 transition-all rounded-lg shadow-sm" data-tab="study"><span class="text-base sm:text-lg">📚</span><span class="text-[9px] text-[#7a6e65] mt-0.5">공부</span></button>
+        </nav>
+
+        <div class="relative flex-1 flex items-center justify-center w-full h-full min-h-0">
+          <div id="room-visual" class="w-full h-full min-h-[220px] rounded-xl relative overflow-hidden bg-gradient-to-b from-[#e1edce] to-[#cfe2b3] border-2 border-[#b2d264] flex items-center justify-center shadow-inner">
+            <div class="absolute inset-0 opacity-15 bg-[radial-gradient(#557a1b_1px,transparent_1px)] [background-size:16px_16px]"></div>
+
+            <div id="char" class="absolute left-[38%] top-[45%] w-[72px] h-[88px] cursor-pointer z-30 transition-all">
+              <div id="char-crest" hidden class="absolute left-[28px] top-[-8px] w-[14px] h-[18px] bg-[#d22] [clip-path:polygon(50%_0,100%_100%,0_100%)] z-40"></div>
+              <div id="char-hair" class="absolute left-[12px] top-[4px] w-[48px] h-[28px] bg-[#2a221c] z-30"></div>
+              <div id="char-head" class="absolute left-[18px] top-[14px] w-[36px] h-[36px] bg-[#f3c7a3] z-20">
+                <div id="eye-l" class="absolute top-[14px] left-[8px] w-[6px] h-[6px] bg-[#222]"></div>
+                <div id="eye-r" class="absolute top-[14px] right-[8px] w-[6px] h-[6px] bg-[#222]"></div>
+                <div id="mouth" class="absolute left-[14px] bottom-[8px] w-[8px] h-[3px] bg-[#c47]"></div>
+              </div>
+              <div id="char-torso" class="absolute left-[20px] top-[48px] w-[32px] h-[28px] bg-[#4a6fa5]"></div>
+              <div class="absolute top-[50px] left-[10px] w-[10px] h-[22px] bg-[#f3c7a3]"></div>
+              <div class="absolute top-[50px] right-[10px] w-[10px] h-[22px] bg-[#f3c7a3]"></div>
+              <div class="absolute top-[74px] left-[22px] w-[12px] h-[16px] bg-[#333]"></div>
+              <div class="absolute top-[74px] right-[22px] w-[12px] h-[16px] bg-[#333]"></div>
+              <div id="prop-phone" hidden class="absolute right-[-6px] top-[56px] w-[14px] h-[22px] bg-[#111] border border-cyan-400 z-50"></div>
+              <div id="prop-laptop" hidden class="absolute left-[56px] top-[62px] w-[28px] h-[16px] bg-[#222] shadow-[0_-10px_0_-3px_#6af] z-50"></div>
+              <div id="prop-pan" hidden class="absolute left-[-8px] top-[56px] w-[24px] h-[7px] bg-[#444] z-50"></div>
+            </div>
+          </div>
+        </div>
+
+        <nav id="icons-right" class="flex flex-col gap-1.5 shrink-0 w-14 sm:w-20 bg-white/70 backdrop-blur border-2 border-[#c4db9b] p-1.5 sm:p-2 rounded-xl shadow-sm">
+          <span class="text-[9px] text-center text-[#7a6e65] font-bold tracking-wider mb-0.5">EXTRA</span>
+          <button type="button" class="icon-btn bg-white border-2 border-[#d8cebe] p-1.5 sm:p-2 flex flex-col items-center justify-center hover:bg-[#f4f8ed] active:scale-95 transition-all rounded-lg shadow-sm" data-tab="shop"><span class="text-base sm:text-lg">🛒</span><span class="text-[9px] text-[#7a6e65] mt-0.5">상점</span></button>
+          <button type="button" class="icon-btn bg-white border-2 border-[#d8cebe] p-1.5 sm:p-2 flex flex-col items-center justify-center hover:bg-[#f4f8ed] active:scale-95 transition-all rounded-lg shadow-sm" data-tab="achieve"><span class="text-base sm:text-lg">🏆</span><span class="text-[9px] text-[#7a6e65] mt-0.5">업적</span></button>
+          <button type="button" class="icon-btn bg-white border-2 border-[#d8cebe] p-1.5 sm:p-2 flex flex-col items-center justify-center hover:bg-[#f4f8ed] active:scale-95 transition-all rounded-lg shadow-sm" data-tab="mini"><span class="text-base sm:text-lg">🎮</span><span class="text-[9px] text-[#7a6e65] mt-0.5">미니게임</span></button>
+          <button type="button" class="icon-btn bg-white border-2 border-[#d8cebe] p-1.5 sm:p-2 flex flex-col items-center justify-center hover:bg-[#f4f8ed] active:scale-95 transition-all rounded-lg shadow-sm" data-tab="look"><span class="text-base sm:text-lg">🧢</span><span class="text-[9px] text-[#7a6e65] mt-0.5">커스텀</span></button>
+        </nav>
+      </div>
+
+      <div class="bg-white/80 backdrop-blur p-2.5 sm:p-3 border-2 border-[#c4db9b] rounded-xl shadow-sm mt-1 w-full shrink-0">
+        <p id="action-label" class="text-center text-[#4a6b1e] text-xs font-semibold mb-1.5">누워서 무표정으로 릴스 보는 중…</p>
+        <div id="action-btns" class="flex flex-wrap gap-1.5 sm:gap-2 justify-center"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="panel-sheet" class="panel-sheet fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end justify-center opacity-0 pointer-events-none transition-opacity duration-200">
+  <div class="panel-sheet-inner bg-white border-2 border-[#b2d264] border-b-0 shadow-2xl w-full max-w-lg max-h-[88vh] flex flex-col transform translate-y-6 transition-transform duration-200 rounded-t-2xl">
+    <div class="flex items-center justify-between p-3 sm:p-4 border-b-2 border-[#eee6d8] text-[#4a6b1e] font-bold shrink-0">
+      <strong id="panel-title">패널</strong>
+      <button type="button" id="panel-close" class="bg-[#f4f8ed] text-[#4a6b1e] border border-[#b2d264] w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[#e8f4d4]">✕</button>
+    </div>
+    <div id="panel-body" class="p-3 sm:p-4 overflow-y-auto flex-1"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+const SAVE_KEY="lime-coding-tycoon-v11";
+const MAX_LEVEL=100;
+
+const STORY_EVENTS = {
+  25: {
+    level: 25,
+    title: "기(起) : 강제 집행된 방구석 청년, 코드와 마주하다",
+    text: "끝없는 무기력 속에 몸과 마음이 굳어버려 결국 '쉬었음 청년'으로 방구석에 틀어박힌 주인공. 체력도 멘탈도 바닥을 치며 쓰러진 그 순간, 모니터 화면이 번쩍이며 푸른빛의 정체불명 시스템 창이 뜬다.\n\n[시스템 알림: 방구석 인생 개조 시뮬레이션 '라임 코딩'이 강제 실행되었습니다.]\n\n통장 잔고 0원. 도망칠 곳 없는 절망 속에서, 시스템은 주인공에게 가장 기초적인 '헬로 월드' 코드 입력과 '나를 돌아보는 자기소개서 한 줄' 쓰기를 강제한다. 첫 거친 숨을 내쉰다."
+  },
+  50: {
+    level: 50,
+    title: "승(承) : 칠흑 같은 밤, 자소서와 코드를 쌓아 올리다",
+    text: "더 이상 하루 종일 무표정으로 릴스만 넘기던 폐인이 아니다. 매일 아침 출석 체크를 하고, 타이머를 켜두고 딥 워크로 알고리즘 코드를 파고든다.\n\n수많은 에러 로그와 싸우며 실력을 쌓는 한편, 모니터 창을 띄워놓고 지난날을 곱씹으며 지원동기와 실패 극복 경험을 담은 자소서를 한 줄 한 줄 꾹꾹 눌러 담아 완성해 나간다."
+  },
+  75: {
+    level: 75,
+    title: "전(轉) : 참혹한 실패, 그리고 딛고 일어선 재도전",
+    text: "[긴급 퀘스트: 꿈꿔왔던 기업 서류 제출 및 실기 프로젝트 도전!]\n\n영혼을 갈아 넣은 자소서와 코드를 제출했으나 돌아온 것은 냉혹한 불합격 통지와 컴파일 에러!\n방구석 이불 속으로 꼬라박히며 멘탈이 완전히 갈려 나간다.\n\n하지만 시스템의 커서는 여전히 깜빡이고 있다.\n[시스템 알림: 실패는 에러가 아닙니다. 코드를 수정하고 자소서를 다시 빌드하세요.]\n\n눈물을 질끈 감고 코드를 뜯어고쳐 마침내 에러를 극복해낸다!"
+  },
+  100: {
+    level: 100,
+    title: "결(結) : 세상 밖으로 걸어 나가는 '일했음 청년'",
+    text: "기나긴 방구석 시뮬레이션의 마지막 페이지.\n수많은 디버깅과 실패를 겪으며 단단해진 주인공은 완성된 포트폴리오 코드와 당당한 미소를 품고 세상 밖으로 걸어 나간다.\n\nIT 기업의 핵심 개발자 취직, 혹은 멋진 창업 성공!\n\n[방구석 인생 타이쿤, 클리어! 오늘부터 진짜 내 인생의 컴파일이 시작됩니다.]"
+  }
+};
+
+const MUTTERS=[
+ "만약 날 만든 사람이 있다면 내 인생을 왜 이렇게 만들었어!!!",
+ "릴스 한 개만… 이 말 오늘만 47번째.",
+ "투두를 미루는 것도 스케줄의 일부인가.",
+ "라임은 신맛인데 내 인생은 그냥 시다.",
+ "일어나면 절반은 이긴 거다. 아직 누워 있지만.",
+ "타이머는 흘러가고 내 잔고도 흘러간다.",
+ "이불 밖은 위험해, 영원히 안 나갈 거야.",
+ "내 통장은 왜 이렇게 물이 줄줄 새지.",
+ "오늘도 아무것도 안 했지만 역시 피곤하다.",
+ "내일의 나에게 모든 것을 떠넘긴다. 힘내라 내일의 나!"
+];
+
+const LOOKS={
+ hair:[{id:"short",name:"짧은머리",rarity:"start"},{id:"long",name:"긴머리",rarity:"start"},{id:"comb",name:"닭벼슬 머리",rarity:"legend"},{id:"afro",name:"폭탄머리",rarity:"rare"}],
+ outfit:[{id:"tshirt",name:"반팔 티셔츠",rarity:"start"},{id:"running",name:"러닝셔츠",rarity:"start"},{id:"hoodie",name:"개발자 후드티",rarity:"rare"},{id:"suit",name:"정장 세트",rarity:"legend"}],
+ face:[{id:"blank",name:"무표정",rarity:"start"},{id:"sad",name:"우울한 표정",rarity:"start"},{id:"smile",name:"희미한 미소",rarity:"uncommon"},{id:"spark",name:"반짝 눈",rarity:"rare"},{id:"dead",name:"영혼 나간 눈",rarity:"rare"}],
+ skin:[{id:"normal",name:"기본 피부",rarity:"start"},{id:"pale",name:"밤샘 창백 피부",rarity:"uncommon"},{id:"green",name:"초록색 피부",rarity:"legend"}]
+};
+const CAT_NAMES={hair:"헤어",outfit:"의상",face:"표정",skin:"피부"};
+
+const ACHIEVE_DEFS={
+ todo1:{icon:"✅",title:"첫 걸음마",desc:"투두 1개를 완료했다."},
+ todo10:{icon:"📋",title:"성실한 방구석러",desc:"누적 투두 10개를 완료했다."},
+ todo50:{icon:"📈",title:"투두 마스터",desc:"누적 투두 50개를 완료했다."},
+ todo100:{icon:"🔥",title:"투두 광인",desc:"누적 투두 100개를 완료했다."},
+ attend1:{icon:"🌞",title:"출석 체크",desc:"출석 보상을 처음 받았다."},
+ attend7:{icon:"🗓️",title:"일주일 개근",desc:"누적 출석 7일을 달성했다."},
+ attend30:{icon:"👑",title:"한 달 개근왕",desc:"누적 출석 30일을 달성했다."},
+ attend100:{icon:"🏛️",title:"명예 개근 장인",desc:"누적 출석 100일을 달성했다."},
+ dailyAll:{icon:"🗒️",title:"완벽한 하루",desc:"일일 퀘스트를 모두 완료했다."},
+ study5:{icon:"⏱️",title:"집중 입문",desc:"공부 정산을 5회 진행했다."},
+ study20:{icon:"🧠",title:"딥 워크",desc:"공부 정산을 20회 진행했다."},
+ study50:{icon:"📚",title:"지식의 도서관",desc:"공부 정산을 50회 진행했다."},
+ mini10:{icon:"🎮",title:"미니게임 매니아",desc:"미니게임을 10회 플레이했다."},
+ mini50:{icon:"🕹️",title:"오락실 고수",desc:"미니게임을 50회 플레이했다."},
+ miniScore:{icon:"🏆",title:"고득점 달성",desc:"수박 게임에서 200점을 넘겼다."},
+ ramenMaster:{icon:"🍜",title:"라면 장인",desc:"방구석 라면가게에서 300점 이상 달성했다."},
+ rich100:{icon:"💰",title:"라임 부자",desc:"보유 라임 100개를 모았다."},
+ rich500:{icon:"💎",title:"재벌 개발자",desc:"보유 라임 500개를 모았다."},
+ rich2000:{icon:"🏦",title:"방구석 거지 탈출",desc:"보유 라임 2000개를 모았다."},
+ level10:{icon:"🚀",title:"레벨 10 달성",desc:"플레이어 레벨 10에 도달했다."},
+ level50:{icon:"🌟",title:"레벨 50 달성",desc:"플레이어 레벨 50에 도달했다."},
+ legendItem:{icon:"✨",title:"전설의 패션",desc:"전설 등급 외형 아이템을 획득했다."},
+ end100:{icon:"🚪",title:"만렙 엔딩",desc:"100레벨을 달성했다."}
+};
+
+const PANEL_TITLES={calendar:"달력 · 일정 관리",todo:"투두리스트",daily:"일일 퀘스트",study:"공부 타이머",shop:"상점",achieve:"업적",mini:"미니게임 센터",look:"외형 커스텀"};
+
+const QUOTES=[
+ {text:"시작이 반이다.",author:"한국 속담"},
+ {text:"천 리 길도 한 걸음부터.",author:"한국 속담"},
+ {text:"오늘 걷지 않으면 내일은 뛰어야 한다.",author:"한국 속담"},
+ {text:"실패는 성공의 어머니다.",author:"서양 격언"},
+ {text:"오늘 할 수 있는 일을 내일로 미루지 마라.",author:"벤저민 프랭클린"},
+ {text:"지식에 대한 투자가 가장 큰 이자를 남긴다.",author:"벤저민 프랭클린"},
+ {text:"말만 앞서는 것보다 작은 실천이 낫다.",author:"벤저민 프랭클린"},
+ {text:"완벽은 위대한 것의 적이다.",author:"볼테르"},
+ {text:"단순함이 궁극의 정교함이다.",author:"레오나르도 다 빈치"},
+ {text:"상상력은 지식보다 중요하다.",author:"알베르트 아인슈타인"},
+ {text:"생각을 멈추지 않는 한 실패는 없다.",author:"토머스 에디슨"},
+ {text:"끈기는 타고난 재능을 이긴다.",author:"캘빈 쿨리지"},
+ {text:"위대한 업적은 힘이 아니라 꾸준함에서 나온다.",author:"새뮤얼 존슨"},
+ {text:"기회는 준비된 자에게 찾아온다.",author:"루이 파스퇴르"},
+ {text:"성공은 끝이 아니고 실패는 치명적이지 않다. 중요한 것은 계속할 용기다.",author:"윈스턴 처칠"},
+ {text:"비관론자는 기회에서 어려움을 보고, 낙관론자는 어려움에서 기회를 본다.",author:"윈스턴 처칠"},
+ {text:"용기란 두려움이 없는 것이 아니라, 두려움보다 중요한 것이 있음을 아는 것이다.",author:"앰브로즈 레드문"},
+ {text:"자신을 믿어라. 그러면 어떻게 살아야 할지 알게 된다.",author:"괴테"},
+ {text:"꿈을 품는 순간 이미 절반은 이룬 것이다.",author:"괴테"},
+ {text:"삶이 있는 한 희망은 있다.",author:"키케로"},
+ {text:"어려움은 위대한 정신을 시험하는 무대다.",author:"세네카"},
+ {text:"불행을 생각하지 말고 네가 가진 것의 아름다움을 생각하라.",author:"마르쿠스 아우렐리우스"},
+ {text:"네 자신을 알라.",author:"소크라테스"},
+ {text:"진정한 지혜는 자신이 모른다는 것을 아는 데 있다.",author:"소크라테스"},
+ {text:"배움에는 끝이 없다.",author:"동양 격언"},
+ {text:"배운 것을 실천하지 않으면 배우지 않은 것과 같다.",author:"순자"},
+ {text:"지혜로운 자는 질문 속에서 답을 찾는다.",author:"공자"},
+ {text:"마음이 산만하면 아무것도 제대로 볼 수 없다.",author:"노자"},
+ {text:"지식은 나눌수록 커진다.",author:"탈무드"},
+ {text:"시간은 한정되어 있으니 남의 삶을 사느라 낭비하지 마라.",author:"스티브 잡스"},
+ {text:"미래를 예측하는 가장 좋은 방법은 미래를 발명하는 것이다.",author:"앨런 케이"},
+ {text:"측정할 수 없으면 관리할 수 없다.",author:"피터 드러커"},
+ {text:"변화를 두려워하지 말고 변화를 주도하라.",author:"잭 웰치"},
+ {text:"내일은 내일의 태양이 뜬다.",author:"바람과 함께 사라지다"},
+ {text:"가장 어두운 밤도 언젠가 끝나고 해는 다시 떠오른다.",author:"빅토르 위고"},
+ {text:"언제나 현재에 집중할 수 있다면 행복할 것이다.",author:"파울로 코엘료"},
+ {text:"피할 수 없으면 즐겨라.",author:"로버트 엘리엇"},
+ {text:"코드는 읽는 사람을 배려해서 써라.",author:"클린 코드"},
+ {text:"좋은 코드는 스스로를 설명한다.",author:"프로그래밍 격언"},
+ {text:"가장 빠른 코드는 아예 실행되지 않는 코드다.",author:"최적화 격언"},
+ {text:"먼저 문제를 풀고, 그다음에 코드를 작성하라.",author:"존 존슨"},
+ {text:"단순함은 신뢰성의 전제 조건이다.",author:"에츠허르 데이크스트라"},
+ {text:"프로그램은 사람이 읽도록 쓰고, 기계가 실행하는 것은 그다음이다.",author:"아벨슨 & 서스먼"},
+ {text:"테스트되지 않은 코드는 작동하지 않는 코드다.",author:"개발 격언"},
+ {text:"반복되는 코드는 언젠가 반드시 발목을 잡는다.",author:"DRY 원칙"},
+ {text:"지속 가능한 코드는 꾸준한 리팩터링에서 나온다.",author:"마틴 파울러"},
+ {text:"모든 코드는 언젠가 레거시가 된다.",author:"익명의 개발자"},
+ {text:"동작한다면 함부로 건드리지 마라.",author:"현장 격언"},
+ {text:"로그가 없는 에러는 유령과 같다.",author:"디버깅 격언"},
+ {text:"코드 리뷰는 서로를 구해주는 방패다.",author:"테크 리드"},
+ {text:"프레임워크는 변하지만 문제 해결력은 남는다.",author:"시니어 개발자"},
+ {text:"버그가 아니라 아직 문서화되지 않은 기능입니다.",author:"개발자의 변명"},
+ {text:"오늘 미룬 버그는 내일의 야근이 된다."},
+ {text:"레거시를 고칠 때 필요한 것은 기술보다 용기다.",author:"레거시 마스터"},
+ {text:"최고의 보안은 방심하지 않는 습관이다.",author:"정보보안 격언"},
+ {text:"문제를 명확히 정의하면 절반은 풀린 것이다.",author:"찰스 케터링"},
+ {text:"생각이 바뀌면 행동이 바뀌고, 행동이 바뀌면 습관이 바뀐다.",author:"윌리엄 제임스"},
+ {text:"좋은 습관은 하루아침에 만들어지지 않는다.",author:"작자 미상"},
+ {text:"작은 성취가 모여 큰 성취를 이룬다.",author:"나폴레온 힐"},
+ {text:"오늘의 노력이 내일의 여유를 만든다.",author:"작자 미상"},
+ {text:"묵묵히 걸어간 길 위에 꽃이 핀다.",author:"작자 미상"}
+];
+
+function todayKey(d){const x=d?new Date(d):new Date();return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0");}
+function yesterdayKey(){const d=new Date();d.setDate(d.getDate()-1);return todayKey(d);}
+function expNeed(level){return Math.floor(40+level*18+level*level*0.4);}
+function clamp(n,a,b){return Math.max(a,Math.min(b,n));}
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
+function formatTime(sec){const m=Math.floor(sec/60),s=sec%60;return String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");}
+
+function makeDaily(){return [
+ {id:"attend",name:"출석 체크 완료하기",reward:20,need:1,done:false},
+ {id:"todo2",name:"오늘 투두 2개 완료하기",reward:30,need:2,done:false},
+ {id:"study10",name:"공부 타이머 10분 이상 정산하기",reward:40,need:1,done:false},
+ {id:"mini2",name:"미니게임 2회 플레이하기",reward:35,need:2,done:false},
+ {id:"reels5",name:"무표정 릴스 5회 실행하기",reward:25,need:5,done:false},
+ {id:"custom",name:"캐릭터 외형 변경하기",reward:15,need:1,done:false}
+];}
+
+function defaultState(){return{
+ level:1,exp:0,gold:20,mental:52,stamina:25,action:"reels",
+ custom:{hair:"short",outfit:"tshirt",face:"blank",skin:"normal"},
+ unlockedLooks:["hair-short","hair-long","outfit-tshirt","outfit-running","face-blank","face-sad","skin-normal"],
+ todos:[],nextTodoId:1,totalTodosCompleted:0,todoCompletedToday:0,todoDate:todayKey(),
+ studySeconds:0,studyToday:0,studyDate:todayKey(),studyRunning:false,studyClaimCount:0,
+ lastTick:Date.now(),lastAttendance
