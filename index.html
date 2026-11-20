@@ -550,6 +550,9 @@ const firebaseConfig = {
 let db = null;
 let firestoreUnsub = null;
 let isApplyingRemote = false;
+let isCloudReady = false;
+let cloudSaveTimer = null;
+let hasPendingCloudSave = false;
 
 try{
   if(window.firebase && (!firebase.apps || !firebase.apps.length)){
@@ -584,21 +587,21 @@ function updateGoogleLoginUI(){
   const btnEl = document.getElementById("google-login-btn");
   if(!labelEl || !btnEl) return;
   if(currentGoogleUser && currentGoogleUser.name){
-    labelEl.textContent = currentGoogleUser.name + " (연동됨)";
+    labelEl.textContent = currentGoogleUser.name + (isCloudReady ? " (동기화됨)" : " (불러오는 중)");
     btnEl.title = (currentGoogleUser.email || "") + " · 클릭하면 계정 전환";
   }else{
     labelEl.textContent = "구글 로그인";
-    btnEl.title = "구글 계정으로 로그인하고 계정별 저장 공간 사용";
+    btnEl.title = "구글 계정으로 로그인하고 기기 간 데이터 동기화";
   }
 }
 
 function refreshAllViewsFromState(){
   applyCosmetics();
   renderActions();
-  setAction(S.action);
+  setAction(S.action, true);
   renderPlanner();
   renderCoreGoalRoom();
-  updateHUD();
+  updateHUD(true);
   const tickerEl=document.getElementById("live-news-ticker");
   if(tickerEl && S.stocks && S.stocks.news) tickerEl.textContent=S.stocks.news;
 }
@@ -612,13 +615,17 @@ function subscribeFirestore(){
   const docId = getFirestoreDocId();
   firestoreUnsub = db.collection("gameSaves").doc(docId).onSnapshot(docSnap=>{
     if(!docSnap.exists) return;
+    if(docSnap.metadata && docSnap.metadata.hasPendingWrites) return;
     const remote = docSnap.data();
     if(!remote || !remote.state) return;
-    if(remote.updatedAt && S._lastSyncedAt && remote.updatedAt <= S._lastSyncedAt) return;
+    const remoteTs = Number(remote.updatedAt || 0);
+    const localTs = Number(S._lastSyncedAt || 0);
+    if(remoteTs && localTs && remoteTs <= localTs) return;
     try{
       isApplyingRemote = true;
       S = normalizeState(remote.state);
-      S._lastSyncedAt = remote.updatedAt || Date.now();
+      S._lastSyncedAt = remoteTs || Date.now();
+      S.lastTick = Date.now();
       localStorage.setItem(getStorageKey(), JSON.stringify(S));
       refreshAllViewsFromState();
       if(currentOpenTab) openPanel(currentOpenTab);
@@ -631,43 +638,93 @@ function subscribeFirestore(){
 }
 
 async function syncFromFirestoreOnce(){
-  if(!db || !currentGoogleUser || !currentGoogleUser.id) return;
+  if(!db || !currentGoogleUser || !currentGoogleUser.id){
+    isCloudReady = true;
+    updateGoogleLoginUI();
+    return;
+  }
+  isCloudReady = false;
+  updateGoogleLoginUI();
   const docId = getFirestoreDocId();
   try{
     const docSnap = await db.collection("gameSaves").doc(docId).get();
     if(docSnap.exists){
       const remote = docSnap.data();
       if(remote && remote.state){
-        isApplyingRemote = true;
-        S = normalizeState(remote.state);
-        S._lastSyncedAt = remote.updatedAt || Date.now();
-        localStorage.setItem(getStorageKey(), JSON.stringify(S));
-        refreshAllViewsFromState();
+        const remoteTs = Number(remote.updatedAt || 0);
+        const localTs = Number(S._lastSyncedAt || 0);
+        const localHasProgress = (S.todos && S.todos.length > 0) || (S.gold !== 50) || (S.level > 1) || (S.exp > 0) || (S.studySeconds > 0);
+        if(!localTs || remoteTs >= localTs || !localHasProgress){
+          isApplyingRemote = true;
+          try{
+            S = normalizeState(remote.state);
+            S._lastSyncedAt = remoteTs || Date.now();
+            S.lastTick = Date.now();
+            localStorage.setItem(getStorageKey(), JSON.stringify(S));
+            refreshAllViewsFromState();
+            if(currentOpenTab) openPanel(currentOpenTab);
+          }finally{
+            isApplyingRemote = false;
+          }
+        }else{
+          isCloudReady = true;
+          flushFirestoreSave();
+        }
       }
     }else{
-      saveToFirestore();
+      isCloudReady = true;
+      flushFirestoreSave();
     }
+    isCloudReady = true;
+    updateGoogleLoginUI();
     subscribeFirestore();
   }catch(e){
     console.warn("[firestore] 불러오기 오류:", e);
+    isCloudReady = true;
+    updateGoogleLoginUI();
   }
 }
 
-function saveToFirestore(){
+function flushFirestoreSave(){
+  if(cloudSaveTimer){
+    clearTimeout(cloudSaveTimer);
+    cloudSaveTimer = null;
+  }
   if(!db || isApplyingRemote) return;
+  if(!currentGoogleUser || !currentGoogleUser.id) return;
+  if(!isCloudReady) return;
+  hasPendingCloudSave = false;
   const docId = getFirestoreDocId();
   const nowTs = Date.now();
   S._lastSyncedAt = nowTs;
+  try{
+    localStorage.setItem(getStorageKey(), JSON.stringify(S));
+  }catch(e){}
   const cleanState = JSON.parse(JSON.stringify(S));
   db.collection("gameSaves").doc(docId).set({
-    userId: currentGoogleUser ? currentGoogleUser.id : "guest",
-    userName: currentGoogleUser ? (currentGoogleUser.name || "") : "게스트",
-    userEmail: currentGoogleUser ? (currentGoogleUser.email || "") : "",
+    userId: currentGoogleUser.id,
+    userName: currentGoogleUser.name || "",
+    userEmail: currentGoogleUser.email || "",
     state: cleanState,
     updatedAt: nowTs
   }, { merge: true }).catch(err=>{
     console.warn("[firestore] 저장 오류:", err);
   });
+}
+
+function scheduleFirestoreSave(immediate){
+  if(!db || isApplyingRemote) return;
+  if(!currentGoogleUser || !currentGoogleUser.id) return;
+  if(!isCloudReady) return;
+  hasPendingCloudSave = true;
+  if(immediate){
+    flushFirestoreSave();
+    return;
+  }
+  if(cloudSaveTimer) return;
+  cloudSaveTimer = setTimeout(()=>{
+    flushFirestoreSave();
+  }, 1500);
 }
 
 function initGoogleAuth(){
@@ -677,43 +734,70 @@ function initGoogleAuth(){
       currentGoogleUser = JSON.parse(savedUser);
     }
   }catch(e){}
-  updateGoogleLoginUI();
   if(currentGoogleUser && currentGoogleUser.id){
+    S = load();
+    refreshAllViewsFromState();
     syncFromFirestoreOnce();
+  }else{
+    isCloudReady = true;
+    updateGoogleLoginUI();
   }
 
-  if(window.google && window.google.accounts && window.google.accounts.oauth2){
-    googleTokenClient = window.google.accounts.oauth2.initTokenClient({
-      client_id: GOOGLE_CLIENT_ID,
-      scope: "openid profile email",
-      callback: async function(tokenResponse){
-        if(!tokenResponse || !tokenResponse.access_token){
-          showFloat("구글 로그인을 완료하지 못했습니다.");
-          return;
+  const bindTokenClient = ()=>{
+    if(googleTokenClient) return true;
+    if(window.google && window.google.accounts && window.google.accounts.oauth2){
+      googleTokenClient = window.google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: "openid profile email",
+        callback: async function(tokenResponse){
+          if(!tokenResponse || !tokenResponse.access_token){
+            showFloat("구글 로그인을 완료하지 못했습니다.");
+            return;
+          }
+          try{
+            const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+              headers: { Authorization: "Bearer " + tokenResponse.access_token }
+            });
+            const profile = await res.json();
+            const userInfo = {
+              id: profile.sub || profile.email || "google_user",
+              name: profile.name || profile.given_name || "구글 사용자",
+              email: profile.email || ""
+            };
+            const guestSnapshot = JSON.parse(JSON.stringify(S));
+            save(true);
+            isCloudReady = false;
+            currentGoogleUser = userInfo;
+            localStorage.setItem(ACTIVE_USER_KEY, JSON.stringify(userInfo));
+            const existingUserRaw = localStorage.getItem(getStorageKey());
+            if(existingUserRaw){
+              S = normalizeState(JSON.parse(existingUserRaw));
+            }else{
+              S = normalizeState(guestSnapshot);
+              S._lastSyncedAt = 0;
+              localStorage.setItem(getStorageKey(), JSON.stringify(S));
+            }
+            S.lastTick = Date.now();
+            updateGoogleLoginUI();
+            refreshAllViewsFromState();
+            await syncFromFirestoreOnce();
+            showFloat(userInfo.name + " 계정으로 동기화되었습니다.");
+          }catch(err){
+            showFloat("사용자 정보를 불러오는 중 오류가 발생했습니다.");
+          }
         }
-        try{
-          const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-            headers: { Authorization: "Bearer " + tokenResponse.access_token }
-          });
-          const profile = await res.json();
-          const userInfo = {
-            id: profile.sub || profile.email || "google_user",
-            name: profile.name || profile.given_name || "구글 사용자",
-            email: profile.email || ""
-          };
-          save();
-          currentGoogleUser = userInfo;
-          localStorage.setItem(ACTIVE_USER_KEY, JSON.stringify(userInfo));
-          S = load();
-          updateGoogleLoginUI();
-          refreshAllViewsFromState();
-          await syncFromFirestoreOnce();
-          showFloat(userInfo.name + " 계정으로 로그인되었습니다.");
-        }catch(err){
-          showFloat("사용자 정보를 불러오는 중 오류가 발생했습니다.");
-        }
-      }
-    });
+      });
+      return true;
+    }
+    return false;
+  };
+
+  if(!bindTokenClient()){
+    let retryCount = 0;
+    const gsiWait = setInterval(()=>{
+      retryCount++;
+      if(bindTokenClient() || retryCount > 20) clearInterval(gsiWait);
+    }, 300);
   }
 }
 
@@ -806,6 +890,7 @@ function defaultState(){return{
   bigEvent:"", bigEventSuccess:false,
   coreGoal:"", coreGoalSuccess:false,
   lastTick:Date.now(),
+  _lastSyncedAt:0,
   ownedRealEstate:["semi_basement"], currentEstate:"semi_basement",
   ownedThemes:["lime"], currentTheme:"lime",
   parcelHistory:[],
@@ -843,6 +928,7 @@ function normalizeState(parsed){
   if(!Array.isArray(merged.parcelHistory))merged.parcelHistory=[];
   if(typeof merged.creditScore!=="number")merged.creditScore=850;
   if(!Array.isArray(merged.loans))merged.loans=[];
+  if(typeof merged._lastSyncedAt!=="number")merged._lastSyncedAt=0;
   return merged;
 }
 
@@ -850,15 +936,24 @@ function load(){
   try{
     const raw=localStorage.getItem(getStorageKey());
     if(!raw)return defaultState();
-    return normalizeState(JSON.parse(raw));
+    const st=normalizeState(JSON.parse(raw));
+    st.lastTick=Date.now();
+    return st;
   }catch(e){return defaultState();}
 }
-function save(){
+function save(skipCloud){
   try{
     localStorage.setItem(getStorageKey(),JSON.stringify(S));
-    saveToFirestore();
+    if(!skipCloud){
+      scheduleFirestoreSave(false);
+    }
   }catch(e){}
 }
+
+try{
+  const bootUserRaw = localStorage.getItem(ACTIVE_USER_KEY);
+  if(bootUserRaw) currentGoogleUser = JSON.parse(bootUserRaw);
+}catch(e){}
 
 let S = load();
 let selectedPlannerDate = todayKey();
@@ -993,9 +1088,19 @@ function unlockAchievement(key){
   save();
 }
 
-function checkAchievements(){
-  if((S.bestBugScore||0)>=30)unlockAchievement("miniScore");
-  if(S.gold>=100)unlockAchievement("rich100");
+function checkAchievements(skipSave){
+  if((S.bestBugScore||0)>=30){
+    if(!S.achievements.includes("miniScore")){
+      if(skipSave){ S.achievements.push("miniScore"); }
+      else{ unlockAchievement("miniScore"); }
+    }
+  }
+  if(S.gold>=100){
+    if(!S.achievements.includes("rich100")){
+      if(skipSave){ S.achievements.push("rich100"); }
+      else{ unlockAchievement("rich100"); }
+    }
+  }
 }
 
 function openPanel(tab){
@@ -1463,7 +1568,7 @@ function renderActions(){
   });
 }
 
-function setAction(id){
+function setAction(id, skipSave){
   S.action=id;
   const a=ACTIONS.find(x=>x.id===id)||ACTIONS[0];
   const avatarEl=document.getElementById("char-avatar");
@@ -1472,7 +1577,7 @@ function setAction(id){
   if(avatarEl)avatarEl.textContent=a.avatar;
   if(badgeEl)badgeEl.textContent=a.badge;
   if(dockCur)dockCur.textContent=a.name;
-  save();
+  if(!skipSave) save();
   renderActions();
   try{window.dispatchEvent(new CustomEvent("lime:action",{detail:id}));}catch(e){}
 }
@@ -1699,7 +1804,7 @@ window.deleteTodo=function(id){
   renderPlanner();
 };
 
-function updateHUD(){
+function updateHUD(skipSave){
   document.getElementById("stat-gold").textContent=S.gold;
   document.getElementById("stat-level").textContent=S.level;
   document.getElementById("stat-mental").textContent=Math.round(S.mental);
@@ -1727,15 +1832,16 @@ function updateHUD(){
   document.getElementById("bar-exp").style.width=clamp((S.exp/expNeeded)*100,0,100)+"%";
   document.getElementById("bar-mental").style.width=clamp(S.mental,0,100)+"%";
   document.getElementById("bar-stamina").style.width=clamp(S.stamina,0,100)+"%";
-  checkAchievements();
+  checkAchievements(skipSave);
 }
 
 let lastDividendTick = Date.now();
 let lastMarketTick = Date.now();
+let lastCloudTickSave = Date.now();
 
 setInterval(()=>{
   const now=Date.now();
-  const dt=(now-S.lastTick)/1000;
+  const dt=Math.min(5, Math.max(0, (now-S.lastTick)/1000));
   S.lastTick=now;
 
   if(now - lastDividendTick >= 60000){
@@ -1755,6 +1861,7 @@ setInterval(()=>{
     if(S.gold<0 && totalInterest>0){ S.creditScore=clamp(S.creditScore-10,300,1000); showFloat("⚠️ 이자 미납! 신용점수 -10점"); }
     if(netIncome !== 0){
       showFloat(`패시브 정산 완료! (수익 +${totalIncome}🍋 - 대출이자 ${totalInterest}🍋)`);
+      save();
       updateHUD();
     }
   }
@@ -1771,6 +1878,7 @@ setInterval(()=>{
       S.exp+=20;
       S.gold+=15;
       showFloat("집중 보상 지급! (+20 EXP, +15🍋)");
+      save();
     }
   }
 
@@ -1783,18 +1891,38 @@ setInterval(()=>{
     else if(S.action==="walk"){S.stamina=clamp(S.stamina-0.08*dt,0,100);S.mental=clamp(S.mental+0.25*dt,0,100);}
   }
 
-  save();
-  updateHUD();
+  save(true);
+  if(now - lastCloudTickSave >= 15000){
+    lastCloudTickSave = now;
+    scheduleFirestoreSave(false);
+  }
+  updateHUD(true);
 },1000);
+
+window.addEventListener("beforeunload", ()=>{
+  save(true);
+  if(hasPendingCloudSave || (currentGoogleUser && currentGoogleUser.id && isCloudReady)){
+    flushFirestoreSave();
+  }
+});
+
+document.addEventListener("visibilitychange", ()=>{
+  if(document.hidden){
+    save(true);
+    if(currentGoogleUser && currentGoogleUser.id && isCloudReady){
+      flushFirestoreSave();
+    }
+  }
+});
 
 document.addEventListener("DOMContentLoaded",()=>{
   initGoogleAuth();
   applyCosmetics();
   renderActions();
-  setAction(S.action);
+  setAction(S.action, true);
   renderPlanner();
   renderCoreGoalRoom();
-  updateHUD();
+  updateHUD(true);
 
   const tickerEl=document.getElementById("live-news-ticker");
   if(tickerEl && S.stocks && S.stocks.news) tickerEl.textContent=S.stocks.news;
